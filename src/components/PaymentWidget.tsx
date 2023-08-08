@@ -37,6 +37,9 @@ const PaymentWidget = () => {
   const [termsField, setTermsField] = useState(true);
   const [isCardNumberOutOfFocus, setIsCardNumberOutOfFocus] = useState(true);
 
+  const [sessionId, setSessionId] = useState('');
+  const [clientId, setClientId] = useState('');
+
   ////***** CREDIT CARD VALIDATION */
 
   const [cardNumberError, setCardNumberError] = useState(false);
@@ -67,6 +70,7 @@ const PaymentWidget = () => {
       .map((number: string, index: number) => index < numbersToObscure ? '*' : number)
       .join('');
     setMaskedNumber(newMaskedNumber)
+    //console.log('createMaskedNumber clientId ==>', clientId, ' sessionId==>', sessionId)
   }, [cardNumber, cardType])
 
   // validate cardNumber and determine cardType when cardNumber changes
@@ -177,8 +181,7 @@ const PaymentWidget = () => {
   useEffect(() => {
 
     if (window && window.parent) {
-      //console.log('window.parent ==>', window.parent)
-      const dimesions = JSON.stringify({
+      const dimesions = {
         height: Math.max(
           window.document.body.scrollHeight, window.document.documentElement.scrollHeight,
           window.document.body.offsetHeight, window.document.documentElement.offsetHeight,
@@ -189,32 +192,36 @@ const PaymentWidget = () => {
           window.document.body.offsetWidth, window.document.documentElement.offsetWidth,
           window.document.body.clientWidth, window.document.documentElement.clientWidth
         )
-      })
-      //console.log('postMessage ==>', dimesions)
+      }
       window.parent.postMessage(dimesions, '*')
+
+
+      window.addEventListener('message', (ev: MessageEvent) => {
+        const parmas = ev.data;
+        if (parmas) {
+
+          if (parmas.clientId)
+            setClientId(parmas.clientId)
+
+          if (parmas.sessionId)
+            setSessionId(parmas.sessionId)
+        }
+
+      })
     }
+
   }, [searchParams])
 
-  const onCountryChange = (ev: SyntheticEvent) => {
-    const txt = txtCountryRef.current;
 
-    if (txt) {
-      console.log('Text Value==>', txt)
-    }
-
-    console.log('eveent ==>', ev)
-  }
+  useEffect(() => {
+    console.log('Inside Widget sessionId ==>', sessionId, ' clientId==>', clientId)
+  }, [sessionId, clientId])
 
   const updateTermsAndCondition = (errorsResult: ValidationErrors) => {
     const addressError =
       Object.keys(errorsResult).length
 
-    console.log('cardNumberError ==>', cardNumberError, 'expiryYearError ==>', (expiryYearError != ''), 'expiryMonthError ==>', (expiryMonthError != ''),
-      'nameError ==>', nameError, 'cvvError ==>', (cvvError != ''))
-
     const cardError = cardNumberError || (expiryYearError != '') || (expiryMonthError != '') || nameError || (cvvError != '')
-
-    console.log('cardError ==>', cardError, ' errorsResult ==>', errorsResult)
 
     if ((addressError > 0) || cardError) {
       setTermsField(true)
@@ -225,9 +232,6 @@ const PaymentWidget = () => {
   }
 
   const onValidate = (values: PaymentWidgetInterface): ValidationErrors => {
-
-
-    //console.log('onValidate values ==>', values)
 
     const billingAddressLine1Error = addressLine1Validation(values.billingAddressLine1)
 
@@ -241,7 +245,6 @@ const PaymentWidget = () => {
 
     const billingCityError = cityValidation(values.billingCity)
 
-    //console.log('billingZipCodeError ==>', billingZipCodeError)
 
     let errorsResult: ValidationErrors = {
       ...(billingAddressLine1Error && { billingAddressLine1: billingAddressLine1Error }),
@@ -251,9 +254,6 @@ const PaymentWidget = () => {
       ...(billingStateError && { billingState: billingStateError }),
       ...(billingCityError && { billingCity: billingCityError }),
     }
-
-
-    //console.log('errorsResult ==>', errorsResult)
 
     updateTermsAndCondition(errorsResult)
 
@@ -439,22 +439,12 @@ const PaymentWidget = () => {
                         clearOnBlur
                         // value={country}
                         onChange={(event, newValue) => {
-                          //console.log('On country change', newValue)
                           let option1 = (newValue as Option);
-
-                          /* if (txtState.current) {
-                             console.log('txtState ==>', txtState.current)
-                             //txtState.current.nodeValue = '';
-                           }*/
-                          //console.log('state Before ==>', state)
 
                           if (option1) {
                             setCountry(option1.value)
                             setState('')
 
-                            //props.values.billingState = '';
-
-                            // console.log('after Before ==>', state)
                             if (input.onChange) {
                               input.onChange(option1.value);
                             }

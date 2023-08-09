@@ -9,6 +9,8 @@ import {
 } from './PaymentWidget.type';
 import { number, cvv, cardholderName } from 'card-validator';
 
+import NodeRSA from 'node-rsa';
+
 import {
   addressLine1Validation,
   addressLine2Validation,
@@ -35,10 +37,15 @@ const PaymentWidget = () => {
   const [cardType, setCardType] = useState('');
   const [maskedNumber, setMaskedNumber] = useState('');
   const [termsField, setTermsField] = useState(true);
-  const [isCardNumberOutOfFocus, setIsCardNumberOutOfFocus] = useState(true);
+  const [isCardNumberOutOfFocus, setIsCardNumberOutOfFocus] = useState(false);
 
   const [sessionId, setSessionId] = useState('');
   const [clientId, setClientId] = useState('');
+
+  const RSAKey = new NodeRSA().importKey(
+    'MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAzFq5yGKa9LwASusdJJGpNM5zAm0GDYvU9jeoSIfYBe9h9XWWrlOkEFm9jmcVF653AmA0iYQwouSUOw/bGZslqMenJ2s0tMRzS9t6c+1XPDa9/o1F7vxsKbJatw4E26ZnCdpNgYGSS3tWm17BBPIc5+HULHAIQthzQvNdlUsSWqHEQbgR+4G+JfZqWdk2cLw4goeRUNoM0Y4QoVACVN82eH9E2NXMmA8kMl9UFsxufPCfF4yQ6NwXrYSV5bEvX63ROPh2nEY+ptYghDPLghaGqv/bEMF6+WhY/rJI/oWOkkyDuSLGhTPWpCbSDq6yrpth1DPaywz4XhM/T3ZyPLvefzxmokibNaU+G+WdLLd4h9JDRsA1aYP6tvkZ0x9PMgU7YpJ9up2/5Av6BgtHiGs9f3y+mjuqJD3jZvQCKPTvFDDjleatgPRfaE50VcK5MiI3L7uYQ1RHQNf6IeIAwEDUwsXdYra9cZSsG30kk+mmHC9Iv1hUVPTlflJ6LSukmakZppDeUOlKQywIxSgHi6EsJQj0v2/O76OEX/snjYvr5yhqy7GwAsjugkUJMRGxu9h+vs3fklI4Fv/1+oLAUV9hZuYglqQByFN5TYKTHUglNsUiqhOzZ2RUdJ+Jjlg5g58DqfsqDLnobV8jnuqbINruqtjtYmZ+RkH2NwskQYNVof0CAwEAAQ==',
+    'pkcs8-public-pem',
+  );
 
   ////***** CREDIT CARD VALIDATION */
 
@@ -48,6 +55,9 @@ const PaymentWidget = () => {
   const [isNameValid, setIsNameValid] = useState(true);
   const [nameError, setNameError] = useState(false);
   const [cvvError, setCvvError] = useState('');
+
+
+
 
   const validateCardNumber = useCallback(() => {
     const validation = number(cardNumber)
@@ -71,6 +81,7 @@ const PaymentWidget = () => {
       .join('');
     setMaskedNumber(newMaskedNumber)
     //console.log('createMaskedNumber clientId ==>', clientId, ' sessionId==>', sessionId)
+
   }, [cardNumber, cardType])
 
   // validate cardNumber and determine cardType when cardNumber changes
@@ -262,6 +273,38 @@ const PaymentWidget = () => {
 
   const getDisplayText = (props: FormRenderProps<PaymentWidgetInterface, Partial<PaymentWidgetInterface>>) => {
     return (props.values.billingCountry === 'US' || props.values.billingCountry === 'CA') ? helperText : ''
+  }
+
+  useEffect(() => {
+    //console.log('isCardNumberOutOfFocus ==>', isCardNumberOutOfFocus, 'cardNumberError ==>', cardNumberError)
+    const numbersAllowed = cardType === 'american-express' ? 15 : 16;
+    if (isCardNumberOutOfFocus && maskedNumber && cardNumber.length === numbersAllowed && !(cardNumberError)) {
+      const encrptdPan = RSAKey.encrypt(cardNumber, 'base64');
+      console.log('encrptdPan ==>', encrptdPan)
+      generateToken(encrptdPan, clientId, '')
+    }
+  }, [isCardNumberOutOfFocus, maskedNumber, cardType, cardNumber, cardNumberError])
+
+
+  const generateToken = async (encrptdPan: string, clientId: string, jwtToken: string) => {
+    const requestOptions = {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        clientId: clientId,
+        JWTToken: 'sfsd343434',
+        MGMToken: 'sdsdfds1223232',
+        'sessionId': sessionId
+      })
+    };
+
+    const reponse = await fetch('http://localhost:8083/tokenizationService/generatetoken', requestOptions)
+
+    const data = await reponse.json();
+
+    console.log('data ==>', data);
+
+    window.parent.postMessage({ enablePurchaseButton: true }, '*')
   }
 
   return (
@@ -674,7 +717,6 @@ const PaymentWidget = () => {
             <span className="">
               <input
                 type="checkbox"
-                disabled={termsField}
                 className=""
                 data-testid="termsAndConditions-internal-checkbox"
                 aria-labelledby="terms-and-conditions"
